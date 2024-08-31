@@ -2,6 +2,7 @@
 
 import os
 import sys
+
 # single thread doubles cuda performance - needs to be set before torch import
 if any(arg.startswith('--execution-provider') for arg in sys.argv):
     os.environ['OMP_NUM_THREADS'] = '1'
@@ -19,11 +20,13 @@ import swapper.globals
 import swapper.metadata
 import swapper.ui as ui
 from swapper.predictor import predict_image, predict_video
-from swapper.processors.frame.core import get_frame_processors_modules
+from swapper.frame.core import get_frame_processors_modules  # Updated path
 from swapper.utilities import has_image_extension, is_image, is_video, detect_fps, create_video, extract_frames, get_temp_frame_paths, restore_audio, create_temp, move_temp, clean_temp, normalize_output_path
 
 warnings.filterwarnings('ignore', category=FutureWarning, module='insightface')
 warnings.filterwarnings('ignore', category=UserWarning, module='torchvision')
+
+
 
 
 def parse_args() -> None:
