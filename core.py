@@ -2,35 +2,29 @@
 
 import os
 import sys
-
-# Single thread doubles CUDA performance - needs to be set before torch import
-if any(arg.startswith('--execution-provider') for arg in sys.argv):
-    os.environ['OMP_NUM_THREADS'] = '1'
-# Reduce TensorFlow log level
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
-
 import warnings
-from typing import List
+import argparse
 import platform
 import signal
 import shutil
-import argparse
 import onnxruntime
 import tensorflow
-import globals  # updated import
-import metadata  # updated import
-import ui  # updated import
-from predictor import predict_image, predict_video  # updated import
-from frame.core import get_frame_processors_modules  # updated import
+
+from frame.core import get_frame_processors_modules  # Ensure this is correctly pointing to your frame processor
 from utilities import (
     has_image_extension, is_image, is_video, detect_fps,
     create_video, extract_frames, get_temp_frame_paths,
     restore_audio, create_temp, move_temp, clean_temp,
     normalize_output_path
-)  # updated import
+)
+import globals
+import metadata
+import ui
+from predictor import predict_image, predict_video
 
 warnings.filterwarnings('ignore', category=FutureWarning, module='insightface')
 warnings.filterwarnings('ignore', category=UserWarning, module='torchvision')
+
 
 
 def parse_args() -> None:
