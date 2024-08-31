@@ -3,11 +3,12 @@
 import os
 import sys
 
-# single thread doubles cuda performance - needs to be set before torch import
+# Single thread doubles CUDA performance - needs to be set before torch import
 if any(arg.startswith('--execution-provider') for arg in sys.argv):
     os.environ['OMP_NUM_THREADS'] = '1'
-# reduce tensorflow log level
+# Reduce TensorFlow log level
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
+
 import warnings
 from typing import List
 import platform
@@ -16,17 +17,20 @@ import shutil
 import argparse
 import onnxruntime
 import tensorflow
-import swapper.globals
-import swapper.metadata
-import swapper.ui as ui
-from swapper.predictor import predict_image, predict_video
-from swapper.frame.core import get_frame_processors_modules  # Updated path
-from swapper.utilities import has_image_extension, is_image, is_video, detect_fps, create_video, extract_frames, get_temp_frame_paths, restore_audio, create_temp, move_temp, clean_temp, normalize_output_path
+import globals  # updated import
+import metadata  # updated import
+import ui  # updated import
+from predictor import predict_image, predict_video  # updated import
+from frame.core import get_frame_processors_modules  # updated import
+from utilities import (
+    has_image_extension, is_image, is_video, detect_fps,
+    create_video, extract_frames, get_temp_frame_paths,
+    restore_audio, create_temp, move_temp, clean_temp,
+    normalize_output_path
+)  # updated import
 
 warnings.filterwarnings('ignore', category=FutureWarning, module='insightface')
 warnings.filterwarnings('ignore', category=UserWarning, module='torchvision')
-
-
 
 
 def parse_args() -> None:
@@ -50,29 +54,29 @@ def parse_args() -> None:
     program.add_argument('--max-memory', help='maximum amount of RAM in GB', dest='max_memory', type=int)
     program.add_argument('--execution-provider', help='available execution provider (choices: cpu, ...)', dest='execution_provider', default=['cpu'], choices=suggest_execution_providers(), nargs='+')
     program.add_argument('--execution-threads', help='number of execution threads', dest='execution_threads', type=int, default=suggest_execution_threads())
-    program.add_argument('-v', '--version', action='version', version=f'{swapper.metadata.name} {swapper.metadata.version}')
+    program.add_argument('-v', '--version', action='version', version=f'{metadata.name} {metadata.version}')
 
     args = program.parse_args()
 
-    swapper.globals.source_path = args.source_path
-    swapper.globals.target_path = args.target_path
-    swapper.globals.output_path = normalize_output_path(swapper.globals.source_path, swapper.globals.target_path, args.output_path)
-    swapper.globals.headless = swapper.globals.source_path is not None and swapper.globals.target_path is not None and swapper.globals.output_path is not None
-    swapper.globals.frame_processors = args.frame_processor
-    swapper.globals.keep_fps = args.keep_fps
-    swapper.globals.keep_frames = args.keep_frames
-    swapper.globals.skip_audio = args.skip_audio
-    swapper.globals.many_faces = args.many_faces
-    swapper.globals.reference_face_position = args.reference_face_position
-    swapper.globals.reference_frame_number = args.reference_frame_number
-    swapper.globals.similar_face_distance = args.similar_face_distance
-    swapper.globals.temp_frame_format = args.temp_frame_format
-    swapper.globals.temp_frame_quality = args.temp_frame_quality
-    swapper.globals.output_video_encoder = args.output_video_encoder
-    swapper.globals.output_video_quality = args.output_video_quality
-    swapper.globals.max_memory = args.max_memory
-    swapper.globals.execution_providers = decode_execution_providers(args.execution_provider)
-    swapper.globals.execution_threads = args.execution_threads
+    globals.source_path = args.source_path
+    globals.target_path = args.target_path
+    globals.output_path = normalize_output_path(globals.source_path, globals.target_path, args.output_path)
+    globals.headless = globals.source_path is not None and globals.target_path is not None and globals.output_path is not None
+    globals.frame_processors = args.frame_processor
+    globals.keep_fps = args.keep_fps
+    globals.keep_frames = args.keep_frames
+    globals.skip_audio = args.skip_audio
+    globals.many_faces = args.many_faces
+    globals.reference_face_position = args.reference_face_position
+    globals.reference_frame_number = args.reference_frame_number
+    globals.similar_face_distance = args.similar_face_distance
+    globals.temp_frame_format = args.temp_frame_format
+    globals.temp_frame_quality = args.temp_frame_quality
+    globals.output_video_encoder = args.output_video_encoder
+    globals.output_video_quality = args.output_video_quality
+    globals.max_memory = args.max_memory
+    globals.execution_providers = decode_execution_providers(args.execution_provider)
+    globals.execution_threads = args.execution_threads
 
 
 def encode_execution_providers(execution_providers: List[str]) -> List[str]:
@@ -95,17 +99,17 @@ def suggest_execution_threads() -> int:
 
 
 def limit_resources() -> None:
-    # prevent tensorflow memory leak
+    # Prevent TensorFlow memory leak
     gpus = tensorflow.config.experimental.list_physical_devices('GPU')
     for gpu in gpus:
         tensorflow.config.experimental.set_virtual_device_configuration(gpu, [
             tensorflow.config.experimental.VirtualDeviceConfiguration(memory_limit=1024)
         ])
-    # limit memory usage
-    if swapper.globals.max_memory:
-        memory = swapper.globals.max_memory * 1024 ** 3
+    # Limit memory usage
+    if globals.max_memory:
+        memory = globals.max_memory * 1024 ** 3
         if platform.system().lower() == 'darwin':
-            memory = swapper.globals.max_memory * 1024 ** 6
+            memory = globals.max_memory * 1024 ** 6
         if platform.system().lower() == 'windows':
             import ctypes
             kernel32 = ctypes.windll.kernel32  # type: ignore[attr-defined]
@@ -127,97 +131,88 @@ def pre_check() -> bool:
 
 def update_status(message: str, scope: str = 'SWAPPER.CORE') -> None:
     print(f'[{scope}] {message}')
-    if not swapper.globals.headless:
+    if not globals.headless:
         ui.update_status(message)
 
 
 def start() -> None:
-    for frame_processor in get_frame_processors_modules(swapper.globals.frame_processors):
+    for frame_processor in get_frame_processors_modules(globals.frame_processors):
         if not frame_processor.pre_start():
             return
-    # process image to image
-    if has_image_extension(swapper.globals.target_path):
-        if predict_image(swapper.globals.target_path):
+    # Process image to image
+    if has_image_extension(globals.target_path):
+        if predict_image(globals.target_path):
             destroy()
-        shutil.copy2(swapper.globals.target_path, swapper.globals.output_path)
-        # process frame
-        for frame_processor in get_frame_processors_modules(swapper.globals.frame_processors):
+        shutil.copy2(globals.target_path, globals.output_path)
+        # Process frame
+        for frame_processor in get_frame_processors_modules(globals.frame_processors):
             update_status('Progressing...', frame_processor.NAME)
-            frame_processor.process_image(swapper.globals.source_path, swapper.globals.output_path, swapper.globals.output_path)
+            frame_processor.process_image(globals.source_path, globals.output_path, globals.output_path)
             frame_processor.post_process()
-        # validate image
-        if is_image(swapper.globals.target_path):
-            update_status('Processing to image succeed!')
+        # Validate image
+        if is_image(globals.target_path):
+            update_status('Processing to image succeeded!')
         else:
             update_status('Processing to image failed!')
         return
-    # process image to videos
-    if predict_video(swapper.globals.target_path):
+    # Process image to video
+    if predict_video(globals.target_path):
         destroy()
     update_status('Creating temporary resources...')
-    create_temp(swapper.globals.target_path)
-    # extract frames
-    if swapper.globals.keep_fps:
-        fps = detect_fps(swapper.globals.target_path)
+    create_temp(globals.target_path)
+    # Extract frames
+    if globals.keep_fps:
+        fps = detect_fps(globals.target_path)
         update_status(f'Extracting frames with {fps} FPS...')
-        extract_frames(swapper.globals.target_path, fps)
+        extract_frames(globals.target_path, fps)
     else:
         update_status('Extracting frames with 30 FPS...')
-        extract_frames(swapper.globals.target_path)
-    # process frame
-    temp_frame_paths = get_temp_frame_paths(swapper.globals.target_path)
+        extract_frames(globals.target_path)
+    # Process frame
+    temp_frame_paths = get_temp_frame_paths(globals.target_path)
     if temp_frame_paths:
-        for frame_processor in get_frame_processors_modules(swapper.globals.frame_processors):
+        for frame_processor in get_frame_processors_modules(globals.frame_processors):
             update_status('Progressing...', frame_processor.NAME)
-            frame_processor.process_video(swapper.globals.source_path, temp_frame_paths)
+            frame_processor.process_video(globals.source_path, temp_frame_paths)
             frame_processor.post_process()
     else:
         update_status('Frames not found...')
         return
-    # create video
-    if swapper.globals.keep_fps:
-        fps = detect_fps(swapper.globals.target_path)
+    # Create video
+    if globals.keep_fps:
+        fps = detect_fps(globals.target_path)
         update_status(f'Creating video with {fps} FPS...')
-        create_video(swapper.globals.target_path, fps)
+        create_video(globals.target_path, fps)
     else:
         update_status('Creating video with 30 FPS...')
-        create_video(swapper.globals.target_path)
-    # handle audio
-    if swapper.globals.skip_audio:
-        move_temp(swapper.globals.target_path, swapper.globals.output_path)
-        update_status('Skipping audio...')
-    else:
-        if swapper.globals.keep_fps:
-            update_status('Restoring audio...')
-        else:
-            update_status('Restoring audio might cause issues as fps are not kept...')
-        restore_audio(swapper.globals.target_path, swapper.globals.output_path)
-    # clean temp
-    update_status('Cleaning temporary resources...')
-    clean_temp(swapper.globals.target_path)
-    # validate video
-    if is_video(swapper.globals.target_path):
-        update_status('Processing to video succeed!')
+        create_video(globals.target_path)
+    # Restore audio
+    if not globals.skip_audio:
+        restore_audio(globals.target_path, globals.output_path)
+    # Validate video
+    if is_video(globals.output_path):
+        update_status('Processing to video succeeded!')
     else:
         update_status('Processing to video failed!')
+    # Remove temporary frames
+    if globals.keep_frames:
+        move_temp(globals.target_path)
+    else:
+        clean_temp(globals.target_path)
 
 
 def destroy() -> None:
-    if swapper.globals.target_path:
-        clean_temp(swapper.globals.target_path)
-    sys.exit()
+    if not globals.headless:
+        ui.destroy()
 
 
-def run() -> None:
-    parse_args()
+def main() -> None:
     if not pre_check():
         return
-    for frame_processor in get_frame_processors_modules(swapper.globals.frame_processors):
-        if not frame_processor.pre_check():
-            return
+    parse_args()
     limit_resources()
-    if swapper.globals.headless:
-        start()
-    else:
-        window = ui.init(start, destroy)
-        window.mainloop()
+    start()
+
+
+if __name__ == '__main__':
+    main()
