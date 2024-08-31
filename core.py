@@ -10,7 +10,7 @@ import shutil
 import onnxruntime
 import tensorflow
 
-from frame.core import get_frame_processors_modules  # Ensure this is correctly pointing to your frame processor
+from swapper.core import get_frame_processors_modules  # Ensure this is correctly pointing to your frame processor
 from utilities import (
     has_image_extension, is_image, is_video, detect_fps,
     create_video, extract_frames, get_temp_frame_paths,
